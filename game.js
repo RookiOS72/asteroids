@@ -68,7 +68,7 @@
   let extraLifeAwarded = false;
   let currentSeed = 0;
   let currentBestOnSeed = null; // null = no prior best
-  let level = 0; // increments per wave cleared; resets on new field; preserved on replay
+  let level = 0; // increments per wave cleared; resets on new field AND on replay
   let elapsed = 0; // total seconds since game start (for UFO spawning)
   let ufoTimer = 0;
   let lastTime = 0;
@@ -288,7 +288,7 @@
       }
     } else if (state === STATE.GAME_OVER) {
       if (e.code === "KeyR") {
-        startGameWithSeed(currentSeed); // replay: preserve level
+        startGameWithSeed(currentSeed, { resetLevel: true }); // replay: reset to wave 1
       } else if (e.code === "KeyN") {
         startGameWithSeed(newSeed(), { resetLevel: true });
       } else if (e.code === "Escape") {
@@ -923,7 +923,7 @@
         if (state === STATE.PLAYING) gameOver();
       },
       replay: () => {
-        if (state === STATE.GAME_OVER) startGameWithSeed(currentSeed); // replay: preserve level
+        if (state === STATE.GAME_OVER) startGameWithSeed(currentSeed, { resetLevel: true }); // replay: reset to wave 1
       },
       newField: () => {
         if (state === STATE.GAME_OVER) startGameWithSeed(newSeed(), { resetLevel: true });
