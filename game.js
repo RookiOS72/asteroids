@@ -841,8 +841,11 @@
     ctx.fillRect(0, 0, W, H);
 
     for (const a of asteroids) drawAsteroid(a);
-    for (const b of bullets) drawBullet(b);
     for (const u of ufos) drawUfo(u);
+    // Bullets drawn AFTER UFOs (and AFTER the ship, below) so a UFO bullet
+    // firing directly out of the UFO is visible immediately — the UFO body
+    // doesn't hide its own projectile under render order.
+    for (const b of bullets) drawBullet(b);
     drawShip();
     drawParticles();
   }
