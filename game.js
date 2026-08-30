@@ -29,8 +29,9 @@
   const SHIP_THRUST = 220; // px/s^2
   const SHIP_MAX_SPEED = 380; // px/s
   const SHIP_DRAG = 0.4; // per second (scaled)
-  const SHIP_ROT_SPEED = 4.5; // rad/s
-  const SHIP_FIRE_COOLDOWN = 0.18; // seconds
+  const SHIP_ROT_SPEED = 4.5; // rad/s — total rotation rate
+  const SHIP_ROT_SUBSTEPS = 4; // sub-steps per frame for finer precision
+  const SHIP_FIRE_COOLDOWN = 0.10; // seconds — faster fire for precision aiming
   const BULLET_SPEED = 460;
   const BULLET_LIFE = 0.85;
   const ASTEROID_SPEEDS = [60, 110, 160]; // large, medium, small
@@ -385,8 +386,19 @@
       ship.cooldown = Math.max(0, ship.cooldown - dt);
       hyperspaceCooldown = Math.max(0, hyperspaceCooldown - dt);
 
-      if (keys.ArrowLeft) ship.angle -= SHIP_ROT_SPEED * dt;
-      if (keys.ArrowRight) ship.angle += SHIP_ROT_SPEED * dt;
+      // Sub-step rotation for finer angular precision. We compute the
+      // total rotation for this frame (same as before), but divide it into
+      // SHIP_ROT_SUBSTEPS smaller increments applied sequentially within the
+      // frame. End result is the same angular speed, but each press can
+      // aim more precisely because each sub-step moves the ship ~1° instead
+      // of ~4.3°.
+      const rotStep = SHIP_ROT_SPEED * dt / SHIP_ROT_SUBSTEPS;
+      if (keys.ArrowLeft) {
+        for (let s = 0; s < SHIP_ROT_SUBSTEPS; s++) ship.angle -= rotStep;
+      }
+      if (keys.ArrowRight) {
+        for (let s = 0; s < SHIP_ROT_SUBSTEPS; s++) ship.angle += rotStep;
+      }
       const thrusting = !!keys.ArrowUp;
       if (thrusting !== ship.thrusting) {
         ship.thrusting = thrusting;
