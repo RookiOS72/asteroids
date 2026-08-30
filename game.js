@@ -414,7 +414,12 @@
       // escaped and seemed to "live forever" in a weird zone.
       u.x += u.vx * dt;
       u.cooldown = Math.max(0, u.cooldown - dt);
-      if (u.cooldown <= 0 && rand() < 0.02) {
+      // Per-frame gameplay randomness (UFO firing decision, future random
+      // events). Intentionally NOT seeded — gameplay outcomes should not
+      // differ between two plays of the same seed. Without this, a seeded
+      // RNG sequence that happens to produce values > 0.02 for many calls
+      // in a row can suppress UFO firing for several seconds (we saw this).
+      if (u.cooldown <= 0 && Math.random() < 0.02) {
         // Fire at the ship
         const dx = ship.x - u.x;
         const dy = ship.y - u.y;
@@ -485,9 +490,7 @@
         }
       }
       if (hit) continue;
-
-      // UFO bullets don't kill the ship via the bullet — they need ship vs ufo-bullet logic.
-      if (!b.fromUfo) newBullets.push(b);
+      newBullets.push(b);
     }
     bullets = newBullets;
 
@@ -942,6 +945,14 @@
       },
       // Test hook: clear bullets without resetting the rest of game state.
       _clearBullets: () => { bullets.length = 0; },
+      // Test hook: get current bullet count.
+      _getBulletCount: () => bullets.length,
+      // Test hook: get current bullet snapshot (positions, velocities, source).
+      _getBulletSnapshot: () =>
+        bullets.map((b) => ({
+          x: b.x, y: b.y, vx: b.vx, vy: b.vy,
+          fromUfo: b.fromUfo, life: b.life,
+        })),
       // Test hook: get the current asteroid velocities for assertion in tests.
       _getAsteroidVelocities: () =>
         asteroids.map((a) => ({ vx: a.vx, vy: a.vy, x: a.x, y: a.y })),
