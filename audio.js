@@ -66,6 +66,11 @@ const Audio = (() => {
     // A square wave with amplitude modulated by a slow LFO at ~8Hz, giving
     // the iconic "wub-wub-wub". LFO depth is high so the amplitude swings
     // nearly to silence — that's the recognizable pulsing.
+    //
+    // CRITICAL: ufoLfoGain starts at 0. The depth is set by ufoSetSize()
+    // when a UFO actually spawns. Setting it nonzero at init produces a
+    // continuous warbling warble on the first keypress (which calls
+    // Audio.unlock → init), even with no UFO on screen.
     ufoOsc = ctx.createOscillator();
     ufoOsc.type = "square";
     ufoOsc.frequency.value = 110;
@@ -74,12 +79,13 @@ const Audio = (() => {
     const ufoFilter = ctx.createBiquadFilter();
     ufoFilter.type = "lowpass";
     ufoFilter.frequency.value = 1200;
-    // LFO for amplitude (the wub) — swings gain between near-silence and full volume
+    // LFO for amplitude (the wub) — swings gain between near-silence and full volume.
+    // Depth is set to 0 here and tuned by ufoSetSize() when a UFO spawns.
     ufoLfo = ctx.createOscillator();
     ufoLfo.type = "sine";
     ufoLfo.frequency.value = 8;
     ufoLfoGain = ctx.createGain();
-    ufoLfoGain.gain.value = 0.08;   // big UFO: deep wub
+    ufoLfoGain.gain.value = 0; // start with zero modulation depth → silent
     ufoLfo.connect(ufoLfoGain).connect(ufoGain.gain);
     ufoOsc.connect(ufoFilter).connect(ufoGain).connect(masterGain);
     ufoOsc.start();
