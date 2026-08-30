@@ -467,9 +467,12 @@
 
       for (let i = ufos.length - 1; i >= 0; i--) {
         const u = ufos[i];
-        // Skip UFO bullets (they fire from the UFO itself and can catch up
-        // to their own UFO and destroy it — debris+boom+audio-stop with no
-        // ship interaction, exactly as the user reported).
+        // Only ship-fired bullets can destroy a UFO. UFO bullets are an
+        // internal artifact of the UFO's own fire pattern — by design, a
+        // UFO is only vulnerable to its adversary's (the ship's) weapons,
+        // not its own projectiles. This also eliminates an entire class
+        // of bug: a UFO bullet fired toward the ship when the ship is
+        // behind the UFO used to catch up and self-destroy the UFO.
         if (b.fromUfo) continue;
         if (Math.hypot(b.x - u.x, b.y - u.y) < 18) {
           hit = true;
