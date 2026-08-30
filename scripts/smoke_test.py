@@ -291,6 +291,16 @@ def main() -> int:
         print("\n--- UFO escape test ---")
         # Spawn a big UFO (vx=±90 px/s; crosses 800px in ~9s).
         # Then poll ufoCount over time: should reach 0 within 12s.
+        # Same state-reset trick for the big UFO test
+        page.keyboard.press("KeyA")  # OFF
+        page.wait_for_timeout(50)
+        page.evaluate("window.__asteroids.forceGameOver()")
+        page.wait_for_timeout(50)
+        page.evaluate("window.__asteroids.newField()")
+        page.wait_for_timeout(200)
+        page.keyboard.press("KeyA")  # ON
+        page.wait_for_timeout(50)
+
         ufo0 = page.evaluate("window.__asteroids._spawnUfo('big')")
         print(f"  Spawned big UFO: x={ufo0['x']}, vx={ufo0['vx']}")
         assert ufo0["x"] in (0, 800), f"UFO should spawn at x=0 or x=800, got {ufo0['x']}"
@@ -311,6 +321,18 @@ def main() -> int:
         print(f"  ✓ big UFO escaped the screen in {elapsed_ms}ms")
 
         # Same for small UFO (vx=±180; crosses faster).
+        # Reset state cleanly first: clear any asteroids/UFOs/bullets from prior
+        # tests. Without this, the small UFO spawns into a dirty state and may
+        # be auto-destroyed by leftover bullets.
+        page.keyboard.press("KeyA")  # OFF (collisions off)
+        page.wait_for_timeout(50)
+        page.evaluate("window.__asteroids.forceGameOver()")
+        page.wait_for_timeout(50)
+        page.evaluate("window.__asteroids.newField()")
+        page.wait_for_timeout(200)
+        page.keyboard.press("KeyA")  # ON (back on)
+        page.wait_for_timeout(50)
+
         ufo1 = page.evaluate("window.__asteroids._spawnUfo('small')")
         print(f"  Spawned small UFO: x={ufo1['x']}, vx={ufo1['vx']}")
         escaped = False
@@ -636,6 +658,60 @@ def main() -> int:
         # Medium should bounce strongly (>30 px/s, feel like billiards)
         assert abs(b[-1]["vx"]) > 25, f"medium should bounce > 25 px/s, got |vx|={abs(b[-1]['vx']):.2f}"
         print(f"  ✓ medium bounces strongly (|{abs(b[-1]['vx']):.2f}| > 25)")
+
+        # ---- UFO self-kill regression test ----
+        # Verifies that a UFO bullet does NOT kill the UFO that fired it.
+        # This was the bug behind "UFOs disappear without being shot":
+        # UFO fires a bullet toward the ship; if the ship is behind the UFO
+        # (rare but possible), the bullet travels in the opposite direction of
+        # the UFO's velocity. The UFO continues forward at ~90 px/s while the
+        # bullet travels back at ~240 px/s. After ~1.2s of bullet cooldown +
+        # travel, the bullet catches up to the UFO and the bullet-vs-UFO
+        # collision check destroys the UFO with full debris+boom+audio-cutoff,
+        # exactly as the user described.
+        #
+        # The fix: skip UFO bullets in the bullet-vs-UFO collision loop.
+        # This test reproduces the failure scenario: spawn a UFO with vx=-90
+        # (moving left), inject a UFO bullet moving right (vx=+240) toward
+        # it, and verify the UFO survives.
+        print("\n--- UFO self-kill regression test ---")
+        page.keyboard.press("KeyA")  # OFF
+        page.wait_for_timeout(50)
+        page.evaluate("window.__asteroids.forceGameOver()")
+        page.wait_for_timeout(50)
+        page.evaluate("window.__asteroids.newField()")
+        page.wait_for_timeout(200)
+        # Clear all asteroids/UFOs/bullets for a clean slate.
+        page.evaluate("window.__asteroids._clearAll()")
+        page.evaluate("window.__asteroids._clearBullets()")
+        page.wait_for_timeout(20)
+
+        # Spawn a real UFO via the existing hook.
+        ufo = page.evaluate("window.__asteroids._spawnUfo('big')")
+        print(f"  Spawned big UFO: x={ufo['x']}, vx={ufo['vx']}")
+        # Inject a UFO bullet at the UFO's position, moving in the OPPOSITE
+        # direction (toward the UFO from in front, simulating the "ship is behind
+        # the UFO" scenario). Without the fix, the bullet would catch up and
+        # destroy the UFO. With the fix, UFO bullets are skipped in the
+        # bullet-vs-UFO collision loop.
+        page.evaluate(f"""() => {{
+            // Spawn the UFO bullet moving in the +x direction (toward +x).
+            // If UFO vx is negative (moving left), the bullet is moving right.
+            // They approach each other.
+            window.__asteroids._injectUfoBullet({ufo['x'] + 20}, {ufo['y']}, 240, 0);
+        }}""")
+        page.wait_for_timeout(200)
+        # Check if the UFO still exists.
+        ufo_still_there = page.evaluate("""() => {
+            // UFOs are in the closure-private `ufos` array. The only public
+            // way to check is via the count hook.
+            return window.__asteroids.getUfoCount();
+        }""")
+        if ufo_still_there == 0:
+            print(f"  ✗ UFO was destroyed by its own bullet!")
+            raise AssertionError("UFO self-kill regression: UFO was destroyed by its own bullet")
+        else:
+            print(f"  ✓ UFO survived its own bullet ({ufo_still_there} UFO(s) still in field)")
 
         browser.close()
 

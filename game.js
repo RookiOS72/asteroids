@@ -467,6 +467,10 @@
 
       for (let i = ufos.length - 1; i >= 0; i--) {
         const u = ufos[i];
+        // Skip UFO bullets (they fire from the UFO itself and can catch up
+        // to their own UFO and destroy it — debris+boom+audio-stop with no
+        // ship interaction, exactly as the user reported).
+        if (b.fromUfo) continue;
         if (Math.hypot(b.x - u.x, b.y - u.y) < 18) {
           hit = true;
           score += u.size === "small" ? UFO_SMALL_POINTS : UFO_BIG_POINTS;
@@ -907,6 +911,15 @@
         for (const a of list) asteroids.push(a);
         return asteroids.length;
       },
+      // Test hook: inject a UFO bullet directly. Used by the UFO self-kill
+      // regression test to simulate the dangerous "UFO bullet fired at the ship
+      // that's behind the UFO" scenario.
+      _injectUfoBullet: (x, y, vx, vy) => {
+        bullets.push({ x, y, vx, vy, life: 1.2, fromUfo: true });
+        return bullets.length;
+      },
+      // Test hook: clear bullets without resetting the rest of game state.
+      _clearBullets: () => { bullets.length = 0; },
       // Test hook: get the current asteroid velocities for assertion in tests.
       _getAsteroidVelocities: () =>
         asteroids.map((a) => ({ vx: a.vx, vy: a.vy, x: a.x, y: a.y })),
