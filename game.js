@@ -68,6 +68,7 @@
   let extraLifeAwarded = false;
   let currentSeed = 0;
   let currentBestOnSeed = null; // null = no prior best
+  let level = 0; // increments per wave cleared; resets on new field; preserved on replay
   let elapsed = 0; // total seconds since game start (for UFO spawning)
   let ufoTimer = 0;
   let lastTime = 0;
@@ -103,7 +104,10 @@
 
   function spawnInitialField() {
     asteroids = [];
-    const count = 4 + Math.min(4, Math.floor(currentSeed % 8)); // 4–11 asteroids
+    // Count grows with the current level: +1 per wave cleared, capped at 11
+    // (matches the original Asteroids arcade max). The level is preserved on
+    // replay so the seed's wave difficulty is reproducible; reset on new field.
+    const count = Math.min(4 + level, 11);
     for (let i = 0; i < count; i++) {
       const size = 0; // all large to start
       let x, y;
@@ -173,7 +177,7 @@
     }
   }
 
-  function startGameWithSeed(seed) {
+  function startGameWithSeed(seed, { resetLevel = false } = {}) {
     currentSeed = seed;
     rand = mulberry32(seed);
     score = 0;
@@ -186,6 +190,9 @@
     // Kill any persistent UFO audio from a previous run
     Audio.ufoActive(false);
     particles = [];
+    // Reset level only when explicitly requested (new field, not replay).
+    // Replay keeps the level the same seed had, so wave difficulty is reproducible.
+    if (resetLevel) level = 0;
     ship = newShip();
     spawnInitialField();
     state = STATE.PLAYING;
@@ -268,13 +275,13 @@
 
     if (state === STATE.MENU) {
       if (e.code === "Space") {
-        startGameWithSeed(newSeed());
+        startGameWithSeed(newSeed(), { resetLevel: true });
       }
     } else if (state === STATE.GAME_OVER) {
       if (e.code === "KeyR") {
-        startGameWithSeed(currentSeed);
+        startGameWithSeed(currentSeed); // replay: preserve level
       } else if (e.code === "KeyN") {
-        startGameWithSeed(newSeed());
+        startGameWithSeed(newSeed(), { resetLevel: true });
       } else if (e.code === "Escape") {
         state = STATE.MENU;
         ship = null;
@@ -510,6 +517,10 @@
 
     // Wave clear?
     if (asteroids.length === 0) {
+      // Advance difficulty: each cleared wave adds one asteroid (capped at 11
+      // by spawnInitialField). The level persists across replays of the same
+      // seed so the wave difficulty is reproducible.
+      level++;
       spawnInitialField();
     }
 
@@ -869,10 +880,10 @@
         if (state === STATE.PLAYING) gameOver();
       },
       replay: () => {
-        if (state === STATE.GAME_OVER) startGameWithSeed(currentSeed);
+        if (state === STATE.GAME_OVER) startGameWithSeed(currentSeed); // replay: preserve level
       },
       newField: () => {
-        if (state === STATE.GAME_OVER) startGameWithSeed(newSeed());
+        if (state === STATE.GAME_OVER) startGameWithSeed(newSeed(), { resetLevel: true });
       },
       // Test hook: clear any asteroids within the spawn-zone radius, applying
       // the normal cascade rule (large → 2 medium, medium → 2 small, small → gone).

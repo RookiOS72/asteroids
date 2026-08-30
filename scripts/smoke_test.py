@@ -170,8 +170,10 @@ def main() -> int:
         snap1 = page.evaluate("window.__asteroids.getAsteroidSnapshotAtSpawn()")
         print(f"  Run 1: seed={hex(seed1)}, {len(snap1)} asteroids")
         assert len(snap1) > 0, "Should have spawned asteroids"
-        expected_count = 4 + min(4, seed1 % 8)
-        assert len(snap1) == expected_count, f"asteroid count formula wrong: {len(snap1)} vs {expected_count}"
+        # Wave 1 (level 0) always starts with 4 asteroids, regardless of seed.
+        # Wave count grows with level on subsequent waves (see spawnInitialField).
+        expected_count = 4
+        assert len(snap1) == expected_count, f"wave-1 asteroid count wrong: {len(snap1)} vs {expected_count}"
 
         # 9. Force game-over
         page.evaluate("window.__asteroids.forceGameOver()")
