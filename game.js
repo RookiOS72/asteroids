@@ -165,15 +165,67 @@
   }
 
   function spawnDebris(x, y, count, color = "#ff6644") {
+    // Random pixel-dot debris (used for asteroid/UFO explosions).
     for (let i = 0; i < count; i++) {
       const a = rand() * Math.PI * 2;
       const sp = 40 + rand() * 180;
       particles.push({
+        type: "dot",
         x, y,
         vx: Math.cos(a) * sp,
         vy: Math.sin(a) * sp,
         life: 0.4 + rand() * 0.4,
         maxLife: 0.8,
+        color,
+      });
+    }
+  }
+
+  // Spawn ship wireframe segments as drifting debris. Each segment is a
+  // line from (x1,y1) to (x2,y2) drawn in the ship's color, drifting in a
+  // random direction with a slow rotation, fading over ~5 seconds. Matches
+  // the OG Asteroids ship-death animation: the ship "disconnects" and the
+  // line segments float away and fade independently.
+  function spawnShipDebris(ship, color = "#ffffff") {
+    // The ship's wireframe is 6 line segments forming the ship outline.
+    // Ship local-space points (relative to ship center, before rotation):
+    //   (1, 0), (-0.7, 0.7), (-0.4, 0), (-0.7, -0.7)
+    // We construct the 4 actual line segments from these points.
+    const S = SHIP_SIZE;
+    const pts = [
+      [S, 0],
+      [-S * 0.7, S * 0.7],
+      [S, 0],
+      [-S * 0.4, 0],
+      [-S * 0.4, 0],
+      [-S * 0.7, S * 0.7],
+      [-S * 0.4, 0],
+      [-S * 0.7, -S * 0.7],
+      [-S * 0.4, 0],
+      [-S * 0.7, -S * 0.7],
+    ];
+    // Rotate the local points by the ship's current angle, then translate.
+    const cos = Math.cos(ship.angle);
+    const sin = Math.sin(ship.angle);
+    for (let i = 0; i < pts.length; i += 2) {
+      const [lx1, ly1] = pts[i];
+      const [lx2, ly2] = pts[i + 1];
+      const x1 = ship.x + lx1 * cos - ly1 * sin;
+      const y1 = ship.y + lx1 * sin + ly1 * cos;
+      const x2 = ship.x + lx2 * cos - ly2 * sin;
+      const y2 = ship.y + lx2 * sin + ly2 * cos;
+      // Each segment drifts in a random direction with a slow rotation.
+      const a = Math.random() * Math.PI * 2;
+      const sp = 30 + Math.random() * 80;
+      particles.push({
+        type: "segment",
+        x1, y1, x2, y2,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        angle: 0,
+        vAngle: (Math.random() - 0.5) * 4,
+        life: 3.0 + Math.random() * 2.5,
+        maxLife: 5.5,
         color,
       });
     }
@@ -368,10 +420,16 @@
       }
     }
 
-    // Bullets
+    // Bullets — STRAIGHT LINE, no wrapping. In the OG Asteroids, bullets
+    // disappear when they leave the screen. We used to wrap them (forgiving
+    // player intent) but it caused projectiles to fly across the screen
+    // multiple times and made the UFO/audio logic behave oddly. Let them
+    // age out via life; the filter below removes them once life <= 0 OR
+    // (since the position is unchanged once they leave the screen) they
+    // simply fly off the edge.
     for (const b of bullets) {
-      b.x = wrap(b.x + b.vx * dt, W);
-      b.y = wrap(b.y + b.vy * dt, H);
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
       b.life -= dt;
     }
     bullets = bullets.filter((b) => b.life > 0);
@@ -388,8 +446,19 @@
 
     // Particles
     for (const p of particles) {
-      p.x = wrap(p.x + p.vx * dt, W);
-      p.y = wrap(p.y + p.vy * dt, H);
+      if (p.type === "segment") {
+        // Ship wireframe debris: drift linearly + rotate around midpoint
+        // so the line endpoints appear to drift independently.
+        p.x1 += p.vx * dt;
+        p.y1 += p.vy * dt;
+        p.x2 += p.vx * dt;
+        p.y2 += p.vy * dt;
+        p.angle += p.vAngle * dt;
+      } else {
+        // Dot debris: wrap so trails stay on screen.
+        p.x = wrap(p.x + p.vx * dt, W);
+        p.y = wrap(p.y + p.vy * dt, H);
+      }
       p.life -= dt;
     }
     particles = particles.filter((p) => p.life > 0);
@@ -421,25 +490,42 @@
       // escaped and seemed to "live forever" in a weird zone.
       u.x += u.vx * dt;
       u.cooldown = Math.max(0, u.cooldown - dt);
-      // Per-frame gameplay randomness (UFO firing decision, future random
-      // events). Intentionally NOT seeded — gameplay outcomes should not
-      // differ between two plays of the same seed. Without this, a seeded
-      // RNG sequence that happens to produce values > 0.02 for many calls
-      // in a row can suppress UFO firing for several seconds (we saw this).
-      if (u.cooldown <= 0 && Math.random() < 0.02) {
-        // Fire at the ship
-        const dx = ship.x - u.x;
-        const dy = ship.y - u.y;
+      // Fire on a per-size cooldown (big: 0.8s, small: 0.6s).
+      // Cooldown-based — deterministic-on-cooldown — rather than per-frame
+      // random, because a seeded RNG could suppress firing for many seconds
+      // if the sequence produced values above the threshold for too long.
+      if (u.cooldown <= 0) {
+        // Big UFO (slow, harmless to score) fires in a RANDOM direction —
+        // matching the OG arcade behavior where the big UFO is a wandering
+        // hazard, not a precision weapon. Small UFO (fast, high-value)
+        // aims at the ship — it's the "smart" UFO you have to shoot fast.
+        // Both fire on a tight cooldown (0.6–0.8s) so the screen gets
+        // busy with projectiles, like the original.
+        let dx, dy;
+        if (u.size === "big") {
+          // Random direction in any angle. Add some y-bias so the UFO
+          // doesn't just orbit the screen — pure random feels weird in
+          // practice; mild y-bias makes the bullets feel "thrown".
+          const a = Math.random() * Math.PI * 2;
+          dx = Math.cos(a);
+          dy = Math.sin(a) * 0.7 + (Math.random() < 0.5 ? 0.3 : -0.3);
+        } else {
+          // Small UFO aims at the ship.
+          dx = ship.x - u.x;
+          dy = ship.y - u.y;
+          const d = Math.hypot(dx, dy) || 1;
+          dx /= d; dy /= d;
+        }
         const sp = u.size === "small" ? 320 : 240;
-        const dist = Math.hypot(dx, dy) || 1;
         bullets.push({
           x: u.x, y: u.y,
-          vx: (dx / dist) * sp,
-          vy: (dy / dist) * sp,
+          vx: dx * sp,
+          vy: dy * sp,
           life: 1.2,
           fromUfo: true,
         });
-        u.cooldown = 1.2;
+        // Cooldown: small UFO fires faster (0.6s) than big UFO (0.8s).
+        u.cooldown = u.size === "small" ? 0.6 : 0.8;
         Audio.ufoFire();
       }
     }
@@ -566,7 +652,12 @@
 
   function killShip() {
     if (!ship) return;
-    spawnDebris(ship.x, ship.y, 24, "#ffaa66");
+    // Ship explodes into its own wireframe segments — the OG behavior.
+    // The lines detach from the ship, drift outward, rotate, and fade
+    // independently over ~5 seconds. We also add a few small dot debris for
+    // the "burn" effect of the explosion.
+    spawnShipDebris(ship, "#ffffff");
+    spawnDebris(ship.x, ship.y, 8, "#ffaa66");
     Audio.boom();
     // Explicitly stop thrust audio — the update loop gates thrust audio
     // updates on `if (ship)`, so without this the persistent oscillator
@@ -842,9 +933,29 @@
   function drawParticles() {
     for (const p of particles) {
       const a = Math.max(0, p.life / p.maxLife);
-      ctx.fillStyle = p.color;
       ctx.globalAlpha = a;
-      ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+      if (p.type === "segment") {
+        // Wireframe segment debris: line endpoints drift independently
+        // because the segment rotates around its midpoint via vAngle.
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 1.5;
+        const midX = (p.x1 + p.x2) / 2;
+        const midY = (p.y1 + p.y2) / 2;
+        const cos = Math.cos(p.angle);
+        const sin = Math.sin(p.angle);
+        const dx1 = p.x1 - midX;
+        const dy1 = p.y1 - midY;
+        const dx2 = p.x2 - midX;
+        const dy2 = p.y2 - midY;
+        ctx.beginPath();
+        ctx.moveTo(midX + dx1 * cos - dy1 * sin, midY + dx1 * sin + dy1 * cos);
+        ctx.lineTo(midX + dx2 * cos - dy2 * sin, midY + dx2 * sin + dy2 * cos);
+        ctx.stroke();
+      } else {
+        // Pixel-dot debris (asteroid / UFO explosions).
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+      }
     }
     ctx.globalAlpha = 1;
   }
