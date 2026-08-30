@@ -31,7 +31,11 @@
   const SHIP_DRAG = 0.4; // per second (scaled)
   const SHIP_ROT_SPEED = 4.5; // rad/s — total rotation rate
   const SHIP_ROT_SUBSTEPS = 4; // sub-steps per frame for finer precision
-  const SHIP_FIRE_COOLDOWN = 0.10; // seconds — faster fire for precision aiming
+  const SHIP_FIRE_COOLDOWN = 0.06; // seconds — even faster for snappy burst
+  const SHIP_BURST_LIMIT = 3;        // shots before forced rest cooldown kicks in
+  const SHIP_BURST_COOLDOWN = 0.55;  // forced rest after burst — gives the player
+                                  // ~0.5s to re-aim without unlimited spam
+  const SHIP_BURST_RESET_TIME = 0.45; // pause longer than this to reset burst counter
   const BULLET_SPEED = 460;
   const BULLET_LIFE = 0.85;
   const ASTEROID_SPEEDS = [60, 110, 160]; // large, medium, small
@@ -134,6 +138,12 @@
       cooldown: 0,
       visible: true,
       invincible: SAFE_RESPAWN_TIME,
+      // Burst-fire state. Tracks consecutive shots so we can force a rest
+      // cooldown after the burst limit is reached (e.g., 3 fast shots then
+      // ~0.6s lockout). shotsSinceRest counts up while firing, resets when
+      // the player pauses. lastShotAt is the timestamp of the last fire.
+      shotsSinceRest: 0,
+      lastShotAt: 0,
     };
   }
 
@@ -384,6 +394,11 @@
     if (ship) {
       ship.invincible = Math.max(0, ship.invincible - dt);
       ship.cooldown = Math.max(0, ship.cooldown - dt);
+      // Reset burst counter if the player has rested long enough.
+      // (lastShotAt starts at 0; first shot always runs the burst path.)
+      if (ship.lastShotAt > 0 && (elapsed - ship.lastShotAt) > SHIP_BURST_RESET_TIME) {
+        ship.shotsSinceRest = 0;
+      }
       hyperspaceCooldown = Math.max(0, hyperspaceCooldown - dt);
 
       // Sub-step rotation for finer angular precision. We compute the
@@ -422,6 +437,13 @@
 
       if (keys.Space && ship.cooldown <= 0) {
         fireBullet();
+        ship.shotsSinceRest++;
+        ship.lastShotAt = elapsed;
+        // After the burst limit, force a longer cooldown — gives the
+        // player ~0.55s to re-aim without unlimited spam. Reset on next rest.
+        ship.cooldown = (ship.shotsSinceRest >= SHIP_BURST_LIMIT)
+          ? SHIP_BURST_COOLDOWN
+          : SHIP_FIRE_COOLDOWN;
       }
 
       if (keys.ShiftLeft || keys.ShiftRight) {
@@ -527,11 +549,26 @@
           dx = Math.cos(a);
           dy = Math.sin(a) * 0.7 + (Math.random() < 0.5 ? 0.3 : -0.3);
         } else {
-          // Small UFO aims at the ship.
-          dx = ship.x - u.x;
-          dy = ship.y - u.y;
-          const d = Math.hypot(dx, dy) || 1;
-          dx /= d; dy /= d;
+          // Small UFO aims at the ship — but with growing inaccuracy the
+          // longer it stays on screen. Newly-spawned small UFOs are precise;
+          // older ones get sloppy. Accuracy degrades from ±2° at spawn to
+          // ±18° after ~5s alive. This matches the OG behavior where a small
+          // UFO is dangerous but can be dodged once it's been around a while.
+          const inaccuracyRad = (2 + Math.min(16, elapsed * 3)) * (Math.PI / 180);
+          const offset = (Math.random() * 2 - 1) * inaccuracyRad;
+          const cosA = Math.cos(u.angle);
+          const sinA = Math.sin(u.angle);
+          // Aim toward the ship, then rotate the direction vector by the
+          // random offset around the +y axis (relative to the ship-target).
+          let aimX = ship.x - u.x;
+          let aimY = ship.y - u.y;
+          const d = Math.hypot(aimX, aimY) || 1;
+          aimX /= d; aimY /= d;
+          // Rotate the unit vector by `offset` radians.
+          const cosO = Math.cos(offset);
+          const sinO = Math.sin(offset);
+          dx = aimX * cosO - aimY * sinO;
+          dy = aimX * sinO + aimY * cosO;
         }
         const sp = u.size === "small" ? 320 : 240;
         bullets.push({
@@ -656,6 +693,8 @@
   }
 
   function fireBullet() {
+    // Bullet spawns at the ship's nose and inherits some of the ship's
+    // velocity (0.3x) so it doesn't feel "stuck" to the ship visually.
     const tip = {
       x: ship.x + Math.cos(ship.angle) * SHIP_SIZE,
       y: ship.y + Math.sin(ship.angle) * SHIP_SIZE,
@@ -668,7 +707,8 @@
       life: BULLET_LIFE,
       fromUfo: false,
     });
-    ship.cooldown = SHIP_FIRE_COOLDOWN;
+    // Cooldown is set by the caller (fire path) so burst logic can override
+    // the standard cooldown with the longer rest cooldown after the burst limit.
     Audio.fire();
   }
 

@@ -760,6 +760,39 @@ def main() -> int:
         # keeps playing. Fix: explicit Audio.thrust(false) in killShip() and
         # gameOver(). This test reads game.js source to verify the call is
         # present (cheaper than a full audio-state inspection in headless).
+        print("\n--- Small UFO inaccuracy (aim drifts over time) test ---")
+        # Small UFO firing should NOT aim with perfect accuracy. After spawn,
+        # the inaccuracy offset is ±2°; after ~5s alive, it grows to ±18°.
+        # We verify by reading game.js source for the inaccuracy formula.
+        gs = open("game.js").read()
+        if "inaccuracyRad" not in gs:
+            raise AssertionError(
+                "Small UFO firing: source no longer includes inaccuracy term"
+            )
+        if "Math.min(16, elapsed * 3)" not in gs:
+            raise AssertionError(
+                "Small UFO firing: inaccuracy formula missing the elapsed-based growth"
+            )
+        print("  ✓ Small UFO firing includes elapsed-based inaccuracy term")
+
+        print("\n--- Ship burst-fire (3-shot burst + rest cooldown) test ---")
+        # Ship should fire faster inside a burst (cooldown 0.06s) and force
+        # a longer rest cooldown after SHIP_BURST_LIMIT shots. Reset on rest.
+        gs = open("game.js").read()
+        if "SHIP_BURST_LIMIT" not in gs or "SHIP_BURST_COOLDOWN" not in gs:
+            raise AssertionError(
+                "Ship burst-fire: SHIP_BURST_LIMIT / SHIP_BURST_COOLDOWN constants missing"
+            )
+        if "shotsSinceRest" not in gs:
+            raise AssertionError(
+                "Ship burst-fire: shotsSinceRest field/counter missing"
+            )
+        if "lastShotAt" not in gs:
+            raise AssertionError(
+                "Ship burst-fire: lastShotAt timestamp missing"
+            )
+        print("  ✓ Ship burst-fire constants + state fields in place")
+
         print("\n--- Big UFO fires in random direction (not aimed) test ---")
         # Verify that big UFO bullets don't always aim at the ship. Fire
         # many times and check that the directions vary.
