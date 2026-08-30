@@ -213,7 +213,23 @@ const Audio = (() => {
     if (!ctx || !ufoGain || muted) return;
     const t = ctx.currentTime;
     ufoGain.gain.cancelScheduledValues(t);
-    ufoGain.gain.setTargetAtTime(on ? 0.10 : 0, t, 0.05);
+    if (on) {
+      // Restore the modulation depth so the LFO modulates the gain around
+      // the new base. (ufoSetSize is also called separately to set the
+      // per-size depth, but setting it here too covers the case where the
+      // UFO's been off-screen long enough that the depth got ramped to 0.)
+      ufoLfoGain.gain.setTargetAtTime(ufoLfoGain.gain.value || 0.09, t, 0.05);
+      ufoGain.gain.setTargetAtTime(0.10, t, 0.05);
+    } else {
+      // CRITICAL: ramp the LFO depth to 0 alongside the base gain.
+      // Otherwise the LFO oscillates ufoGain.gain around 0 with amplitude
+      // ±0.09 → gain swings between -0.09 and +0.09. WebAudio's GainNode
+      // does NOT clamp negative values (it inverts phase), so the +0.09
+      // peaks produce audible warbling even after ufoActive(false).
+      // Ramping the depth to 0 kills the modulation entirely.
+      ufoLfoGain.gain.setTargetAtTime(0, t, 0.05);
+      ufoGain.gain.setTargetAtTime(0, t, 0.05);
+    }
   }
 
   // Backwards-compat shims (the old API had separate ufoBig/ufoSmall/ufoFire).
