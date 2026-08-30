@@ -104,10 +104,12 @@
 
   function spawnInitialField() {
     asteroids = [];
-    // Count grows with the current level: +1 per wave cleared, capped at 11
-    // (matches the original Asteroids arcade max). The level is preserved on
-    // replay so the seed's wave difficulty is reproducible; reset on new field.
-    const count = Math.min(4 + level, 11);
+    // Count grows by one each wave cleared: level 0 = 4 large, level 1 = 5,
+    // level N = 4+N. No cap — the field gets overwhelming over time and the
+    // player survives as long as their skill holds. (This matches the OG
+    // arcade, which had no upper limit on field density.) The level persists
+    // across replays of the same seed so wave difficulty is reproducible.
+    const count = 4 + level;
     for (let i = 0; i < count; i++) {
       const size = 0; // all large to start
       let x, y;
@@ -517,9 +519,10 @@
 
     // Wave clear?
     if (asteroids.length === 0) {
-      // Advance difficulty: each cleared wave adds one asteroid (capped at 11
-      // by spawnInitialField). The level persists across replays of the same
-      // seed so the wave difficulty is reproducible.
+      // Advance difficulty: each cleared wave adds one large asteroid.
+      // No cap — the field gets overwhelming over time and the player
+      // survives as long as their skill holds. The level persists across
+      // replays of the same seed so wave difficulty is reproducible.
       level++;
       spawnInitialField();
     }
