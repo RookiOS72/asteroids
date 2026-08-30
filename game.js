@@ -184,6 +184,10 @@
     rand = mulberry32(seed);
     score = 0;
     lives = 3;
+    // Defensive: silence thrust audio in case the previous session was
+    // thrusting when this game started (rare — only happens if a keydown
+    // listener fires before update can process it). Cheap insurance.
+    Audio.thrust(false);
     extraLifeAwarded = false;
     elapsed = 0;
     ufoTimer = UFO_BIG_INTERVAL;
@@ -205,6 +209,9 @@
 
   function gameOver() {
     state = STATE.GAME_OVER;
+    // Stop thrust audio — same reason as killShip(). The player might have
+    // been holding thrust when their final life ended.
+    Audio.thrust(false);
     if (!extraLifeAwarded && score >= EXTRA_LIFE_SCORE) {
       // ensure extra-life rule fires before we check best
     }
@@ -561,6 +568,10 @@
     if (!ship) return;
     spawnDebris(ship.x, ship.y, 24, "#ffaa66");
     Audio.boom();
+    // Explicitly stop thrust audio — the update loop gates thrust audio
+    // updates on `if (ship)`, so without this the persistent oscillator
+    // keeps playing until the player hits thrust again.
+    Audio.thrust(false);
     ship = null;
     lives -= 1;
     if (lives < 0) {

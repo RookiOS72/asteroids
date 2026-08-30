@@ -713,6 +713,31 @@ def main() -> int:
         else:
             print(f"  ✓ UFO survived its own bullet ({ufo_still_there} UFO(s) still in field)")
 
+        # ---- Thrust audio persistence regression test ----
+        # Bug: thrust sound continued playing after the player died until
+        # they pressed thrust again. Root cause: the update loop gates thrust
+        # audio updates on `if (ship)`. When ship = null (post-killShip),
+        # the audio toggle never runs — the persistent thrust oscillator
+        # keeps playing. Fix: explicit Audio.thrust(false) in killShip() and
+        # gameOver(). This test reads game.js source to verify the call is
+        # present (cheaper than a full audio-state inspection in headless).
+        print("\n--- Thrust audio on death regression test ---")
+        game_src = open("game.js").read()
+        killship_idx = game_src.find("function killShip()")
+        assert killship_idx > 0, "killShip function not found"
+        killship_block = game_src[killship_idx:game_src.find("\n  }", killship_idx)]
+        if "Audio.thrust(false)" not in killship_block:
+            raise AssertionError(
+                "Thrust audio persistence regression: killShip() does not call Audio.thrust(false)"
+            )
+        gameover_idx = game_src.find("function gameOver()")
+        gameover_block = game_src[gameover_idx:game_src.find("\n  }", gameover_idx)]
+        if "Audio.thrust(false)" not in gameover_block:
+            raise AssertionError(
+                "Thrust audio persistence regression: gameOver() does not call Audio.thrust(false)"
+            )
+        print("  ✓ killShip() and gameOver() both call Audio.thrust(false)")
+
         browser.close()
 
     print("\n== smoke test OK ==")
