@@ -2,7 +2,11 @@
 
 > **Faithful mechanics + First-Credit Replay.** The 1979 arcade classic in your browser tab, with the missing feature nobody built: replay the same field to actually beat your high score.
 
-## Play
+## Try it in your browser
+
+**🕹️ [rookios72.github.io/asteroids](https://rookios72.github.io/asteroids/)** — click and play, no download needed.
+
+## Play locally
 
 Open `index.html` in any modern browser. No build step, no server, no install.
 
