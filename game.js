@@ -786,10 +786,26 @@
   }
 
   function drawBullet(b) {
-    ctx.fillStyle = b.fromUfo ? "#ff8866" : "#ffffff";
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.fromUfo ? 2 : 1.5, 0, Math.PI * 2);
-    ctx.fill();
+    if (b.fromUfo) {
+      // UFO bullets: orange-tinted, larger radius so they're actually
+      // visible at 240+ px/s. The original 2px dot was too small to spot
+      // mid-flight on a black background — the user could hear the sound
+      // but not see the projectile.
+      ctx.fillStyle = "#ff7755";
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Add a faint glow so it reads as "projectile" not "noise pixel"
+      ctx.fillStyle = "rgba(255, 119, 85, 0.35)";
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   function drawUfo(u) {
