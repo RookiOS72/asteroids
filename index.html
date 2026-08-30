@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asteroids</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="stage">
+    <canvas id="game" width="800" height="800" aria-label="Asteroids game canvas"></canvas>
+    <div class="hud" id="hud">
+      <div class="hud-row hud-top">
+        <span id="score">SCORE: 0</span>
+        <span id="lives">LIVES: 3</span>
+        <span id="seed">SEED: —</span>
+      </div>
+      <div class="hud-row hud-bottom">
+        <span id="best">BEST ON THIS SEED: —</span>
+        <span id="physics-toggle">PHYSICS: PASS-THROUGH</span>
+      </div>
+    </div>
+    <div class="overlay" id="overlay">
+      <div class="overlay-inner" id="start-screen">
+        <h1>ASTEROIDS</h1>
+        <p class="prompt">PRESS <kbd>SPACE</kbd> TO START</p>
+        <p class="hints">
+          <span><kbd>&larr;</kbd> <kbd>&rarr;</kbd> ROTATE</span>
+          <span><kbd>&uarr;</kbd> THRUST</span>
+          <span><kbd>SPACE</kbd> FIRE</span>
+          <span><kbd>SHIFT</kbd> HYPERSPACE</span>
+          <span><kbd>A</kbd> TOGGLE ASTEROID PHYSICS</span>
+        </p>
+        <p class="meta">a browser port by <a href="#" onclick="return false;">Rook</a> &middot; faithful mechanics + First-Credit Replay</p>
+      </div>
+    </div>
+  </div>
+  <script src="rng.js"></script>
+  <script src="audio.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

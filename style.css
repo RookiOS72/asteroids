@@ -1,0 +1,152 @@
+/* Asteroids — minimal black-void style, vector aesthetic */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background: #000;
+  color: #eaeaea;
+  font-family: "Courier New", Courier, monospace;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage {
+  position: relative;
+  width: min(800px, 100vmin);
+  height: min(800px, 100vmin);
+  aspect-ratio: 1 / 1;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  image-rendering: pixelated;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 18px;
+  font-size: clamp(11px, 1.6vmin, 16px);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.hud-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hud-bottom {
+  justify-content: center;
+}
+
+#best {
+  opacity: 0.7;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  transition: opacity 0.15s ease-out;
+}
+
+.overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.overlay-inner {
+  text-align: center;
+  max-width: 80%;
+}
+
+.overlay h1 {
+  font-size: clamp(40px, 7vmin, 80px);
+  letter-spacing: 0.2em;
+  font-weight: 400;
+  margin-bottom: 1.5em;
+  color: #ffffff;
+}
+
+.overlay p {
+  margin: 0.6em 0;
+}
+
+.prompt {
+  font-size: clamp(16px, 2.4vmin, 22px);
+  letter-spacing: 0.1em;
+  color: #fff;
+}
+
+.hints {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.2em;
+  margin-top: 1.5em !important;
+  font-size: clamp(10px, 1.4vmin, 13px);
+  color: #aaa;
+}
+
+.hints span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 0.95em;
+  color: #fff;
+}
+
+.meta {
+  margin-top: 2em !important;
+  font-size: clamp(9px, 1.2vmin, 12px);
+  color: #777;
+}
+
+.meta a {
+  color: #ccc;
+  text-decoration: none;
+  border-bottom: 1px dotted #777;
+}
+
+.game-over .prompt {
+  color: #ff8866;
+}
+
+/* dim the canvas during overlays so the text reads */
+.overlay:not(.hidden) ~ #game,
+.stage.has-overlay #game {
+  opacity: 0.4;
+}
