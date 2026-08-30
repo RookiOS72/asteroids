@@ -31,11 +31,11 @@
   const SHIP_DRAG = 0.4; // per second (scaled)
   const SHIP_ROT_SPEED = 4.5; // rad/s — total rotation rate
   const SHIP_ROT_SUBSTEPS = 4; // sub-steps per frame for finer precision
-  const SHIP_FIRE_COOLDOWN = 0.06; // seconds — even faster for snappy burst
+  const SHIP_FIRE_COOLDOWN = 0.03; // seconds — halved from 0.06 for even snappier burst
   const SHIP_BURST_LIMIT = 3;        // shots before forced rest cooldown kicks in
-  const SHIP_BURST_COOLDOWN = 0.55;  // forced rest after burst — gives the player
+  const SHIP_BURST_COOLDOWN = 0.275;  // halved from 0.55 — shorter rest after burst
                                   // ~0.5s to re-aim without unlimited spam
-  const SHIP_BURST_RESET_TIME = 0.45; // pause longer than this to reset burst counter
+  const SHIP_BURST_RESET_TIME = 0.225; // halved from 0.45 — burst resets faster
   const BULLET_SPEED = 460;
   const BULLET_LIFE = 0.85;
   const ASTEROID_SPEEDS = [60, 110, 160]; // large, medium, small
