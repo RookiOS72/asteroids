@@ -72,8 +72,8 @@ const Audio = (() => {
     // continuous warbling warble on the first keypress (which calls
     // Audio.unlock → init), even with no UFO on screen.
     ufoOsc = ctx.createOscillator();
-    ufoOsc.type = "square";
-    ufoOsc.frequency.value = 110;
+    ufoOsc.type = "triangle";
+    ufoOsc.frequency.value = 60;
     ufoGain = ctx.createGain();
     ufoGain.gain.value = 0; // start silent
     const ufoFilter = ctx.createBiquadFilter();
@@ -199,14 +199,88 @@ const Audio = (() => {
   function ufoSetSize(size) {
     if (!ctx || !ufoOsc || !ufoLfo || !ufoLfoGain) return;
     if (size === "small") {
-      ufoOsc.frequency.value = 220;
-      ufoLfo.frequency.value = 14;     // faster wobble
+      // Small UFO: higher fundamental (110Hz, like an octave above the
+      // original 55), faster wobble (9Hz).
+      ufoOsc.frequency.value = 110;
+      ufoLfo.frequency.value = 9;
       ufoLfoGain.gain.value = 0.10;
     } else {
-      ufoOsc.frequency.value = 110;
-      ufoLfo.frequency.value = 8;      // slower, deeper wobble
-      ufoLfoGain.gain.value = 0.09;
+      // Big UFO: low fundamental (55Hz, deep bass), slow wobble (6Hz).
+      ufoOsc.frequency.value = 55;
+      ufoLfo.frequency.value = 6;
+      ufoLfoGain.gain.value = 0.11;
     }
+  }
+
+  // ---- Background drone ----
+  // The iconic OG Asteroids low-frequency tone that throbs with the
+  // number of active objects on screen. Implemented as a triangle-wave
+  // oscillator with its GAIN modulated by an LFO; the LFO rate is set
+  // externally by the game based on object count. Fewer objects → slower
+  // throb. More objects → faster throb (cap so it never gets frantic).
+  //
+  // The user described it as a Jaws-like note that intensifies with field
+  // density. Lower-frequency fundamental + slow LFO = ominous; higher LFO
+  // rate = rising tension. We use a fixed low fundamental and vary only
+  // the modulation rate; the OG hardware had a similar single-axis scheme.
+  let droneOsc = null;
+  let droneGain = null;
+  let droneLfo = null;
+  let droneLfoDepth = null; // gain node: depth = how much the LFO modulates droneGain
+
+  function droneStart() {
+    if (!ctx || droneOsc) return;
+    droneOsc = ctx.createOscillator();
+    droneOsc.type = "triangle";
+    droneOsc.frequency.value = 55; // A1 — deep bass
+    droneGain = ctx.createGain();
+    droneGain.gain.value = 0; // start silent — droneUpdate ramps it in
+    droneLfo = ctx.createOscillator();
+    droneLfo.type = "sine";
+    droneLfo.frequency.value = 1.0; // 1 Hz by default — slow throb
+    droneLfoDepth = ctx.createGain();
+    droneLfoDepth.gain.value = 0.06; // how much the throb modulates the drone gain
+    // LFO → depth → droneGain.gain. The drone gain sits at the LFO's offset (0)
+    // plus the depth (0.06). So the gain oscillates between -0.06 and +0.06.
+    // WebAudio clamps negative gain... wait, it doesn't (negative gain inverts
+    // phase). We need a positive base. So droneGain.gain = 0.08 + lfo*0.05.
+    // The simplest fix: set droneGain.gain.value to a positive constant, then
+    // modulate around it via a node that adds to it.
+    droneGain.gain.value = 0.08;
+    droneLfo.connect(droneLfoDepth).connect(droneGain.gain);
+    droneOsc.connect(droneGain).connect(masterGain);
+    droneOsc.start();
+    droneLfo.start();
+  }
+
+  function droneStop() {
+    if (droneOsc) {
+      try { droneOsc.stop(); } catch (e) {}
+      droneOsc.disconnect();
+      droneOsc = null;
+    }
+    if (droneLfo) {
+      try { droneLfo.stop(); } catch (e) {}
+      droneLfo.disconnect();
+      droneLfo = null;
+    }
+    if (droneGain) {
+      droneGain.disconnect();
+      droneGain = null;
+    }
+    droneLfoDepth = null;
+  }
+
+  // Set the throb rate based on the number of active objects on screen.
+  // objectCount is total = asteroids + bullets + ufos + 1 (for the ship).
+  // Map to a throb rate in Hz. Few objects → slow (1.0 Hz). Many → fast (4.0 Hz).
+  function droneSetObjectCount(objectCount) {
+    if (!ctx || !droneLfo) return;
+    // Clamp the count to keep the rate in a sensible range.
+    const c = Math.max(0, Math.min(objectCount, 30));
+    // Linear: rate = 1 + (c/30) * 3 → 1 Hz at 0 objects, 4 Hz at 30 objects.
+    const rate = 1.0 + (c / 30) * 3.0;
+    droneLfo.frequency.setTargetAtTime(rate, ctx.currentTime, 0.1);
   }
 
   function ufoActive(on) {
@@ -276,6 +350,7 @@ const Audio = (() => {
     init, unlock,
     fire, boom, thrust,
     ufoBig, ufoSmall, ufoFire, ufoSetSize, ufoActive,
+    droneStart, droneStop, droneSetObjectCount,
     extraLife, gameOver,
     setMuted,
   };

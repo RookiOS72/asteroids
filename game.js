@@ -257,10 +257,14 @@
     overlay.classList.add("hidden");
     document.querySelector(".stage")?.classList.remove("has-overlay");
     updateHud();
+    // Start the background drone — runs continuously while playing.
+    Audio.droneStart();
   }
 
   function gameOver() {
     state = STATE.GAME_OVER;
+    // Stop the background drone — game over, no more menace.
+    Audio.droneStop();
     // Stop thrust audio — same reason as killShip(). The player might have
     // been holding thrust when their final life ended.
     Audio.thrust(false);
@@ -346,6 +350,7 @@
       } else if (e.code === "Escape") {
         state = STATE.MENU;
         ship = null;
+        Audio.droneStop();
         showMenuOverlay();
       }
     } else if (state === STATE.PLAYING) {
@@ -619,6 +624,11 @@
       extraLifeAwarded = true;
       Audio.extraLife();
     }
+
+    // Background drone throb rate depends on the number of active
+    // objects on screen. More objects = faster throb. This is the
+    // Jaws-style pulse that intensifies with field density.
+    Audio.droneSetObjectCount(asteroids.length + bullets.length + ufos.length + (ship ? 1 : 0));
 
     // Wave clear?
     if (asteroids.length === 0) {
