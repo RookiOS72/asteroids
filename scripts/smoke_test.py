@@ -775,23 +775,20 @@ def main() -> int:
             )
         print("  ✓ Small UFO firing includes elapsed-based inaccuracy term")
 
-        print("\n--- Ship burst-fire (3-shot burst + rest cooldown) test ---")
-        # Ship should fire faster inside a burst (cooldown 0.06s) and force
-        # a longer rest cooldown after SHIP_BURST_LIMIT shots. Reset on rest.
+        print("\n--- Ship fire cooldown (no burst mechanic) test ---")
+        # Per Brenden's revert: we're back to a single cooldown on the ship.
+        # No burst-limit, no rest cooldown. Just one cooldown per shot.
         gs = open("game.js").read()
-        if "SHIP_BURST_LIMIT" not in gs or "SHIP_BURST_COOLDOWN" not in gs:
-            raise AssertionError(
-                "Ship burst-fire: SHIP_BURST_LIMIT / SHIP_BURST_COOLDOWN constants missing"
-            )
-        if "shotsSinceRest" not in gs:
-            raise AssertionError(
-                "Ship burst-fire: shotsSinceRest field/counter missing"
-            )
-        if "lastShotAt" not in gs:
-            raise AssertionError(
-                "Ship burst-fire: lastShotAt timestamp missing"
-            )
-        print("  ✓ Ship burst-fire constants + state fields in place")
+        if "BURST" in gs:
+            # Make sure no leftover burst constants snuck in
+            burst_terms = [term for term in ["BURST_LIMIT", "BURST_COOLDOWN", "BURST_RESET_TIME", "shotsSinceRest", "lastShotAt"] if term in gs]
+            if burst_terms:
+                raise AssertionError(
+                    f"Ship burst mechanic: leftover burst-related terms found: {burst_terms}"
+                )
+        if "SHIP_FIRE_COOLDOWN" not in gs:
+            raise AssertionError("SHIP_FIRE_COOLDOWN constant missing")
+        print("  ✓ Ship uses single fire cooldown (no burst mechanic)")
 
         print("\n--- Big UFO fires in random direction (not aimed) test ---")
         # Verify that big UFO bullets don't always aim at the ship. Fire

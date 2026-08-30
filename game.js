@@ -31,11 +31,7 @@
   const SHIP_DRAG = 0.4; // per second (scaled)
   const SHIP_ROT_SPEED = 4.5; // rad/s — total rotation rate
   const SHIP_ROT_SUBSTEPS = 4; // sub-steps per frame for finer precision
-  const SHIP_FIRE_COOLDOWN = 0.03; // seconds — halved from 0.06 for even snappier burst
-  const SHIP_BURST_LIMIT = 3;        // shots before forced rest cooldown kicks in
-  const SHIP_BURST_COOLDOWN = 0.275;  // halved from 0.55 — shorter rest after burst
-                                  // ~0.5s to re-aim without unlimited spam
-  const SHIP_BURST_RESET_TIME = 0.225; // halved from 0.45 — burst resets faster
+  const SHIP_FIRE_COOLDOWN = 0.13; // seconds — slightly faster than original 0.18
   const BULLET_SPEED = 460;
   const BULLET_LIFE = 0.85;
   const ASTEROID_SPEEDS = [60, 110, 160]; // large, medium, small
@@ -138,12 +134,6 @@
       cooldown: 0,
       visible: true,
       invincible: SAFE_RESPAWN_TIME,
-      // Burst-fire state. Tracks consecutive shots so we can force a rest
-      // cooldown after the burst limit is reached (e.g., 3 fast shots then
-      // ~0.6s lockout). shotsSinceRest counts up while firing, resets when
-      // the player pauses. lastShotAt is the timestamp of the last fire.
-      shotsSinceRest: 0,
-      lastShotAt: 0,
     };
   }
 
@@ -394,11 +384,6 @@
     if (ship) {
       ship.invincible = Math.max(0, ship.invincible - dt);
       ship.cooldown = Math.max(0, ship.cooldown - dt);
-      // Reset burst counter if the player has rested long enough.
-      // (lastShotAt starts at 0; first shot always runs the burst path.)
-      if (ship.lastShotAt > 0 && (elapsed - ship.lastShotAt) > SHIP_BURST_RESET_TIME) {
-        ship.shotsSinceRest = 0;
-      }
       hyperspaceCooldown = Math.max(0, hyperspaceCooldown - dt);
 
       // Sub-step rotation for finer angular precision. We compute the
@@ -437,13 +422,7 @@
 
       if (keys.Space && ship.cooldown <= 0) {
         fireBullet();
-        ship.shotsSinceRest++;
-        ship.lastShotAt = elapsed;
-        // After the burst limit, force a longer cooldown — gives the
-        // player ~0.55s to re-aim without unlimited spam. Reset on next rest.
-        ship.cooldown = (ship.shotsSinceRest >= SHIP_BURST_LIMIT)
-          ? SHIP_BURST_COOLDOWN
-          : SHIP_FIRE_COOLDOWN;
+        ship.cooldown = SHIP_FIRE_COOLDOWN;
       }
 
       if (keys.ShiftLeft || keys.ShiftRight) {
@@ -707,8 +686,6 @@
       life: BULLET_LIFE,
       fromUfo: false,
     });
-    // Cooldown is set by the caller (fire path) so burst logic can override
-    // the standard cooldown with the longer rest cooldown after the burst limit.
     Audio.fire();
   }
 
