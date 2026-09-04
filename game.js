@@ -445,10 +445,15 @@
     // age out via life; the filter below removes them once life <= 0 OR
     // (since the position is unchanged once they leave the screen) they
     // simply fly off the edge.
+    // Trail history (phosphor persistence, see drawBullet): every frame
+    // we append the position; the renderer fades the tail.
     for (const b of bullets) {
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.life -= dt;
+      if (!b.trail) b.trail = [];
+      b.trail.push({ x: b.x, y: b.y });
+      if (b.trail.length > 12) b.trail.shift();
     }
     bullets = bullets.filter((b) => b.life > 0);
 
@@ -685,6 +690,10 @@
       vy: Math.sin(ship.angle) * BULLET_SPEED + ship.vy * 0.3,
       life: BULLET_LIFE,
       fromUfo: false,
+      trail: [],
+      // Muzzle flash: one frame of bloom at the barrel — the vector
+      // beam overdriving at emission. Decays in drawBullet.
+      flash: 3,
     });
     Audio.fire();
   }
@@ -945,10 +954,52 @@
       ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
       ctx.fill();
     } else {
+      // PLAYER bullets — vector-monitor authentic look (Brenden's
+      // observation, evidence-confirmed): the arcade's vector display
+      // drove these tiny dots HARD, so they read as piercing bright
+      // white with bloom, and the monitor's phosphor persistence left
+      // a short fading trail behind the moving dot ("like a CRT slow
+      // to blank the pixels behind the projectile"). A well-maintained
+      // cabinet: strong bloom, faint trail. We render both.
+      // Phosphor trail: older positions fade out; the newest points
+      // near the bullet stay brightest (persistence decay).
+      if (b.trail && b.trail.length > 1) {
+        const n = b.trail.length;
+        for (let i = 0; i < n - 1; i++) {
+          const p = b.trail[i];
+          const age = (i + 1) / n; // 0=oldest .. 1=newest
+          const alpha = Math.pow(age, 2.2) * 0.5; // fast decay — faint trail
+          if (alpha < 0.02) continue;
+          ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+          const r = 0.8 + age * 1.2;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // Bloom: soft outer glow (the overdriven-beam halo).
+      ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+      // Piercing white-hot core.
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
-      ctx.arc(b.x, b.y, 1.5, 0, Math.PI * 2);
+      ctx.arc(b.x, b.y, 1.6, 0, Math.PI * 2);
       ctx.fill();
+      // Muzzle flash (first frames after firing): extra bloom burst
+      // at the bullet's position, fading quickly.
+      if (b.flash && b.flash > 0) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.35 * (b.flash / 3)})`;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 7 * (b.flash / 3), 0, Math.PI * 2);
+        ctx.fill();
+        b.flash -= 1;
+      }
     }
   }
 
